@@ -41,16 +41,6 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
 
-    # Set up Node.js
-    - name: Set up Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: 16
-
-    # Install dependencies
-    - name: Install dependencies
-      run: npm install
-
     # Deploy to AWS
     - name: Deploy to AWS EC2
       uses: appleboy/ssh-action@v0.1.6
@@ -59,8 +49,14 @@ jobs:
         username: ${{ secrets.AWS_USER }}
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
-          cd ~/typescript-express-app
-          git pull origin main
+          if [ -d "~/hello-world/.git" ]; then
+            cd ~/hello-world
+            git pull origin main
+          else
+            mkdir -p ~/hello-world
+            cd ~/hello-world
+            git clone https://github.com/your-username/your-repo.git .
+          fi
           npm install
           npm run build
-          pm2 restart all
+          pm2 start dist/index.js --name "hello-world" || pm2 restart "hello-world"

@@ -10,76 +10,57 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout code
-      - name: Checkout code
-        uses: actions/checkout@v3
+    # Checkout code
+    - name: Checkout code
+      uses: actions/checkout@v3
 
-      # Set up Node.js
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: 16
+    # Set up Node.js
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: 16
 
-      # Install dependencies
-      - name: Install dependencies
-        run: npm install
+    # Install dependencies
+    - name: Install dependencies
+      run: npm install
 
-      # Build the app
-      - name: Build app
-        run: npm run build
+    # Build the app
+    - name: Build app
+      run: npm run build
 
-      # Archive the build artifacts
-      - name: Archive build artifacts
-        run: tar -czf build-artifacts.tar.gz dist package.json node_modules
+    # Test the app (optional, if you have tests)
+    #- name: Run tests
+    #  run: npm test
 
   deploy:
     needs: build
     runs-on: ubuntu-latest
 
     steps:
-      # Add SSH key
-      - name: Add SSH key
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
+    # Checkout code
+    - name: Checkout code
+      uses: actions/checkout@v3
 
-      # Deploy to AWS EC2
-      - name: Deploy to AWS EC2
-        uses: appleboy/ssh-action@v0.1.6
-        with:
-          host: ${{ secrets.AWS_HOST }}      # Public IP or domain of EC2
-          username: ${{ secrets.AWS_USER }}  # SSH user (e.g., ubuntu)
-          key: ${{ secrets.SSH_PRIVATE_KEY }}  # Private SSH key from Secrets
-          port: 22
-          script: |
-            # Ensure the application directory exists
-            mkdir -p ~/typescript-express-app
-            cd ~/typescript-express-app
+    # Set up Node.js
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: 16
 
-            # Remove old files and upload the new ones
-            rm -rf *
-            exit
+    # Install dependencies
+    - name: Install dependencies
+      run: npm install
 
-      # Upload build artifacts to EC2
-      - name: Upload build artifacts
-        run: |
-          scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa build-artifacts.tar.gz ${{ secrets.AWS_USER }}@${{ secrets.AWS_HOST }}:~/typescript-express-app/
-
-      # Unpack and restart application on EC2
-      - name: Restart application
-        uses: appleboy/ssh-action@v0.1.6
-        with:
-          host: ${{ secrets.AWS_HOST }}
-          username: ${{ secrets.AWS_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: 22
-          script: |
-            cd ~/typescript-express-app
-            tar -xzf build-artifacts.tar.gz
-            npm install --production
-
-            # Restart application using PM2
-            pm2 start dist/index.js --name "typescript-express-app"
-            pm2 save
-            pm2 restart typescript-express-app
+    # Deploy to AWS
+    - name: Deploy to AWS EC2
+      uses: appleboy/ssh-action@v0.1.6
+      with:
+        host: ${{ secrets.AWS_HOST }}
+        username: ${{ secrets.AWS_USER }}
+        key: ${{ secrets.AWS_SSH_KEY }}
+        script: |
+          cd ~/typescript-express-app
+          git pull origin main
+          npm install
+          npm run build
+          pm2 restart all

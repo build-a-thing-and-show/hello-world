@@ -28,18 +28,17 @@ jobs:
     - name: Build app
       run: npm run build
 
-    # Test the app (optional, if you have tests)
-    #- name: Run tests
-    #  run: npm test
-
   deploy:
     needs: build
     runs-on: ubuntu-latest
 
     steps:
-    # Checkout code
-    - name: Checkout code
-      uses: actions/checkout@v3
+    # Add SSH key
+    - name: Add SSH key
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
 
     # Deploy to AWS
     - name: Deploy to AWS EC2
@@ -49,14 +48,37 @@ jobs:
         username: ${{ secrets.AWS_USER }}
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
-          if [ -d "~/hello-world/.git" ]; then
-            cd ~/hello-world
-            git pull origin main
+          DEPLOY_DIR=~/hello-world
+          REPO_URL=https://github.com/build-a-thing-and-show/hello-world.git
+          BRANCH=main
+
+          # Create or update the deployment directory
+          if [ -d "$DEPLOY_DIR/.git" ]; then
+            echo "Updating existing repository..."
+            cd $DEPLOY_DIR
+            git fetch origin
+            git checkout $BRANCH
+            git pull origin $BRANCH
           else
-            mkdir -p ~/hello-world
-            cd ~/hello-world
-            git clone https://github.com/build-a-thing-and-show/hello-world.git .
+            echo "Cloning repository..."
+            rm -rf $DEPLOY_DIR
+            mkdir -p $DEPLOY_DIR
+            git clone --branch $BRANCH $REPO_URL $DEPLOY_DIR
+            cd $DEPLOY_DIR
           fi
-          npm install
-          npm run build
+
+          # Clean untracked files
+          git clean -fdx
+
+          # Install dependencies and build
+          if [ -f "package.json" ]; then
+            npm install
+            npm run build
+          else
+            echo "Error: package.json not found. Exiting."
+            exit 1
+          fi
+
+          # Restart the application with PM2
           pm2 start dist/index.js --name "hello-world" || pm2 restart "hello-world"
+          pm2 save

@@ -1,0 +1,63 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    # Checkout the code
+    - name: Checkout Code
+      uses: actions/checkout@v3
+
+    # Set up Node.js
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '16'
+
+    # Install dependencies
+    - name: Install Dependencies
+      run: npm install
+
+    # Compile TypeScript
+    - name: Compile TypeScript
+      run: npm run build
+
+    # Deploy to EC2
+    - name: Deploy to EC2
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        EC2_HOST: ${{ secrets.EC2_HOST }}
+      run: |
+        # Define variables
+        TARGET_DIR=/home/ubuntu/typescript-hello-world
+
+        # SSH into the EC2 instance and set up the environment
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ubuntu@$EC2_HOST << EOF
+          # Stop the existing application if running
+          pkill -f "node dist/index.js" || true
+          
+          # Create target directory if it doesn't exist
+          mkdir -p $TARGET_DIR
+
+          # Clear old application files
+          rm -rf $TARGET_DIR/*
+
+          # Exit SSH
+          exit
+        EOF
+
+        # Copy the project files to the EC2 instance
+        scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa -r ./dist ./package.json ./node_modules ubuntu@$EC2_HOST:$TARGET_DIR/
+
+        # Start the new application
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ubuntu@$EC2_HOST << EOF
+          cd $TARGET_DIR
+          nohup node dist/index.js > /dev/null 2>&1 &
+        EOF

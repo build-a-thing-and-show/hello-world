@@ -1,14 +1,14 @@
-import http from 'http';
+import express, { Request, Response } from 'express';
 
-const hostname = '0.0.0.0';
-const port = 3001;
+const app = express();
+const PORT = 3000;
 
-const server = http.createServer((req, res) => {
-  res.statusCode = 200;
-  res.setHeader('Content-Type', 'text/plain');
-  res.end('Hello, World!\n');
+// Define a route
+app.get('/', (req: Request, res: Response) => {
+    res.send('Hello, New World!!!');
 });
 
-server.listen(port, hostname, () => {
-  console.log(`Server running at http://${hostname}:${port}/`);
+// Start the server
+app.listen(PORT, () => {
+    console.log(`Server is running at http://localhost:${PORT}`);
 });
